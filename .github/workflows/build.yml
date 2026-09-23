@@ -1,0 +1,236 @@
+name: build-all
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.24"
+  # 构建期注入二进制的 ldflags（来源为仓库 Secrets，全部为单行值；
+  # CUSTOM_HEADERS 必须是单行 JSON，如 {"X-Auth":"abc"}）
+  LDFLAGS: >
+    -s -w
+    -X fastime/core.cfgPort=${{ secrets.LISTEN_PORT }}
+    -X fastime/core.cfgUpstream=${{ secrets.UPSTREAM_URL }}
+    -X fastime/core.cfgPath=${{ secrets.UPSTREAM_PATH }}
+    -X fastime/core.cfgKeyB64=${{ secrets.ENC_KEY_B64 }}
+    -X fastime/core.cfgCacheSize=${{ secrets.CACHE_SIZE }}
+    -X fastime/core.cfgCacheTTLSec=${{ secrets.CACHE_TTL_SEC }}
+    -X fastime/core.cfgDoT=${{ secrets.DOT_SERVER }}
+    -X fastime/core.cfgHeaders=${{ secrets.CUSTOM_HEADERS }}
+    -X fastime/core.cfgNetSwitch=${{ secrets.NET_SWITCH_MODE }}
+    -X fastime/core.cfgTimeoutSec=${{ secrets.REQUEST_TIMEOUT_SEC }}
+    -X fastime/core.cfgLogLevel=${{ secrets.LOG_LEVEL }}
+    -X fastime/core.cfgDialMode=${{ secrets.DIAL_MODE }}
+    -X fastime/core.cfgPreferQUIC=${{ secrets.PREFER_QUIC }}
+
+jobs:
+  # ---------- 桌面/服务器 CLI：mac / win / linux / android-cli ----------
+  cli:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: darwin,  goarch: amd64, ext: "" }
+          - { goos: darwin,  goarch: arm64, ext: "" }
+          - { goos: windows, goarch: amd64, ext: ".exe" }
+          - { goos: windows, goarch: arm64, ext: ".exe" }
+          - { goos: linux,   goarch: amd64, ext: "" }
+          - { goos: linux,   goarch: arm64, ext: "" }
+          - { goos: android, goarch: arm64, ext: "" }  # Termux 直接运行
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          set -exo pipefail
+          go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
+          go build -tags noquic -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}-lite${{ matrix.ext }} .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fastime-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: fastime-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fastime-${{ matrix.goos }}-${{ matrix.goarch }}-lite
+          path: fastime-${{ matrix.goos }}-${{ matrix.goarch }}-lite${{ matrix.ext }}
+          retention-days: 30
+
+  # ---------- macOS .app（universal2，双击运行 / 可加入登录项） ----------
+  macos-app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - name: Build universal2
+        env:
+          CGO_ENABLED: 0
+        run: |
+          set -exo pipefail
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-arm64 .
+          lipo -create fastime-amd64 fastime-arm64 -o fastime-universal
+          mkdir -p Fastime.app/Contents/MacOS
+          cp fastime-universal Fastime.app/Contents/MacOS/Fastime
+          cat > Fastime.app/Contents/Info.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>Fastime</string>
+            <key>CFBundleIdentifier</key><string>com.fastime.app</string>
+            <key>CFBundleVersion</key><string>1.0</string>
+            <key>CFBundleExecutable</key><string>Fastime</string>
+            <key>LSUIElement</key><true/>
+          </dict></plist>
+          EOF
+          tar -czf Fastime-macos.app.tar.gz Fastime.app
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fastime-macos-app
+          path: Fastime-macos.app.tar.gz
+          retention-days: 30
+
+  # ---------- Android APK（前台服务常驻保活） ----------
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      # ubuntu-latest 运行器已预装 Android SDK（$ANDROID_HOME），无需 setup-android
+
+      # Go 二进制伪装成 jniLibs 原生库打包进 APK，
+      # extractNativeLibs=true 会在安装时释放为可执行文件
+      - name: Embed core binary
+        env:
+          GOOS: android
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          set -exo pipefail
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          go build -trimpath -ldflags "${{ env.LDFLAGS }}" \
+            -o android/app/src/main/jniLibs/arm64-v8a/libfastime.so .
+
+      - name: Gradle assemble
+        run: |
+          set -exo pipefail
+          cd android
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          /tmp/gradle-8.9/bin/gradle --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fastime-android.apk
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 30
+
+  # ---------- Magisk 模块（root 设备：开机自启、无省电限制） ----------
+  magisk-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - name: Build & pack Magisk module
+        env:
+          GOOS: android
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          set -exo pipefail
+          go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o magisk/fastime .
+          cd magisk
+          zip -r9 ../fastime-magisk.zip . -x fastime.log
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fastime-magisk.zip
+          path: fastime-magisk.zip
+          retention-days: 30
+
+  # ---------- iOS IPA（gomobile 框架 + 静音音频保活；未签名，需 AltStore/TrollStore 侧载） ----------
+  ios-ipa:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: gomobile bind (xcframework)
+        run: |
+          set -exo pipefail
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          export PATH="$HOME/go/bin:$PATH"
+          gomobile version
+          gomobile bind -v -target=ios -iosversion=15.0 \
+            -ldflags "${{ env.LDFLAGS }}" \
+            -o ios/Bind.xcframework ./bind
+
+      - name: Build unsigned IPA
+        run: |
+          set -exo pipefail
+          brew install xcodegen
+          cd ios
+          xcodegen
+          xcodebuild -project Fastime.xcodeproj -scheme Fastime \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build
+          APP=$(find build -name "Fastime.app" -path "*Release-iphoneos*" | head -1)
+          test -d "$APP"
+          mkdir -p Payload
+          cp -r "$APP" Payload/
+          zip -qr Fastime-ios.ipa Payload
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fastime-ios.ipa
+          path: ios/Fastime-ios.ipa
+          retention-days: 30
+
+  # ---------- 打 tag 自动发布 Release ----------
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [cli, macos-app, android-apk, ios-ipa, magisk-module]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: fastime-*
+          merge-multiple: true
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: fastime-*
+          merge-multiple: true
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x fastime-* || true
+          gh release create "${GITHUB_REF_NAME}" fastime-* fastime-* \
+            --title "fastime ${GITHUB_REF_NAME}" --generate-notes
