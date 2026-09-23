@@ -10,7 +10,7 @@ env:
   GO_VERSION: "1.24"
   # 构建期注入二进制的 ldflags（来源为仓库 Secrets，全部为单行值；
   # CUSTOM_HEADERS 必须是单行 JSON，如 {"X-Auth":"abc"}）
-  LDFLAGS: >
+  LDFLAGS: >-
     -s -w
     -X fastime/core.cfgPort=${{ secrets.LISTEN_PORT }}
     -X fastime/core.cfgUpstream=${{ secrets.UPSTREAM_URL }}
@@ -184,9 +184,11 @@ jobs:
         run: |
           set -exo pipefail
           # 钉住 gomobile 版本：@latest 要求 go>=1.26，此版本兼容 go 1.24
-          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20250711185624-d5bb5ecc55c0
+          # gobind 是 gomobile bind 的依赖，需同版本单独安装
+          GOMOBILE_VER=v0.0.0-20250711185624-d5bb5ecc55c0
+          go install golang.org/x/mobile/cmd/gomobile@$GOMOBILE_VER
+          go install golang.org/x/mobile/cmd/gobind@$GOMOBILE_VER
           export PATH="$HOME/go/bin:$PATH"
-          gomobile version
           gomobile bind -v -target=ios -iosversion=15.0 \
             -ldflags "${{ env.LDFLAGS }}" \
             -o ios/Bind.xcframework ./bind
