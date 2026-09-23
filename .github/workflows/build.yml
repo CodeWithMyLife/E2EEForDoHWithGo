@@ -189,6 +189,11 @@ jobs:
           go install golang.org/x/mobile/cmd/gomobile@$GOMOBILE_VER
           go install golang.org/x/mobile/cmd/gobind@$GOMOBILE_VER
           export PATH="$HOME/go/bin:$PATH"
+          # gobind 需要把 golang.org/x/mobile/bind 作为普通 Go 包加载，
+          # 因此它必须出现在本模块的依赖图里（go get 会写入 go.mod）
+          go get golang.org/x/mobile/bind@$GOMOBILE_VER
+          # 防止 gobind 在只读模块模式下解析失败
+          export GOFLAGS=-mod=mod
           gomobile bind -v -target=ios -iosversion=15.0 \
             -ldflags "${{ env.LDFLAGS }}" \
             -o ios/Bind.xcframework ./bind
@@ -222,10 +227,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v7
-        with:
-          pattern: fastime-*
-          merge-multiple: true
       - uses: actions/download-artifact@v7
         with:
           pattern: fastime-*
