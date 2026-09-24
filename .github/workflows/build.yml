@@ -8,9 +8,7 @@ on:
 
 env:
   GO_VERSION: "1.24"
-  # 构建期注入二进制的 ldflags（来源为仓库 Secrets，全部为单行值；
-  # CUSTOM_HEADERS 请存 base64(JSON)，如 echo -n '{"X-Auth":"abc"}' | base64，
-  # 避免 JSON 引号被 shell 吃掉导致程序启动报 JSON 解析错误）
+  # 构建期注入二进制的 ldflags（来源为仓库 Secrets，全部为单行值）
   LDFLAGS: >-
     -s -w
     -X fastime/core.cfgPort=${{ secrets.LISTEN_PORT }}
@@ -20,12 +18,14 @@ env:
     -X fastime/core.cfgCacheSize=${{ secrets.CACHE_SIZE }}
     -X fastime/core.cfgCacheTTLSec=${{ secrets.CACHE_TTL_SEC }}
     -X fastime/core.cfgDoT=${{ secrets.DOT_SERVER }}
-    -X fastime/core.cfgHeaders=${{ secrets.CUSTOM_HEADERS }}
     -X fastime/core.cfgNetSwitch=${{ secrets.NET_SWITCH_MODE }}
     -X fastime/core.cfgTimeoutSec=${{ secrets.REQUEST_TIMEOUT_SEC }}
     -X fastime/core.cfgLogLevel=${{ secrets.LOG_LEVEL }}
     -X fastime/core.cfgDialMode=${{ secrets.DIAL_MODE }}
     -X fastime/core.cfgPreferQUIC=${{ secrets.PREFER_QUIC }}
+  # CUSTOM_HEADERS 直接填纯 JSON（如 {"X-Auth":"abc"}），
+  # 各 job 构建前会 base64 编码后追加到 ldflags，避免 JSON 引号被 shell 吃掉
+  CUSTOM_HEADERS_RAW: ${{ secrets.CUSTOM_HEADERS }}
 
 jobs:
   # ---------- 桌面/服务器 CLI：mac / win / linux / android-cli ----------
@@ -55,8 +55,13 @@ jobs:
           CGO_ENABLED: 0
         run: |
           set -exo pipefail
-          go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
-          go build -tags noquic -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}-lite${{ matrix.ext }} .
+          # CUSTOM_HEADERS 在构建期 base64 编码，避免 JSON 引号被 shell 吃掉
+          HDR=""
+          if [ -n "$CUSTOM_HEADERS_RAW" ]; then
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+          fi
+          go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
+          go build -tags noquic -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}-lite${{ matrix.ext }} .
       # Windows 额外打包：exe + 启动/停止 bat（双击闪退时用 bat 能看到错误）
       - name: Package Windows bundle
         if: matrix.goos == 'windows'
@@ -96,8 +101,12 @@ jobs:
           CGO_ENABLED: 0
         run: |
           set -exo pipefail
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-arm64 .
+          HDR=""
+          if [ -n "$CUSTOM_HEADERS_RAW" ]; then
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+          fi
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-arm64 .
           lipo -create fastime-amd64 fastime-arm64 -o fastime-universal
           mkdir -p Fastime.app/Contents/MacOS
           cp fastime-universal Fastime.app/Contents/MacOS/Fastime
@@ -145,8 +154,12 @@ jobs:
           CGO_ENABLED: 0
         run: |
           set -exo pipefail
+          HDR=""
+          if [ -n "$CUSTOM_HEADERS_RAW" ]; then
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+          fi
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          go build -trimpath -ldflags "${{ env.LDFLAGS }}" \
+          go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" \
             -o android/app/src/main/jniLibs/arm64-v8a/libfastime.so .
 
       - name: Gradle assemble
@@ -178,7 +191,11 @@ jobs:
           CGO_ENABLED: 0
         run: |
           set -exo pipefail
-          go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o magisk/fastime .
+          HDR=""
+          if [ -n "$CUSTOM_HEADERS_RAW" ]; then
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+          fi
+          go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o magisk/fastime .
           cd magisk
           zip -r9 ../fastime-magisk.zip . -x fastime.log
       - uses: actions/upload-artifact@v7
@@ -211,8 +228,12 @@ jobs:
           go get golang.org/x/mobile/bind@$GOMOBILE_VER
           # 防止 gobind 在只读模块模式下解析失败
           export GOFLAGS=-mod=mod
+          HDR=""
+          if [ -n "$CUSTOM_HEADERS_RAW" ]; then
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+          fi
           gomobile bind -v -target=ios -iosversion=15.0 \
-            -ldflags "${{ env.LDFLAGS }}" \
+            -ldflags "${{ env.LDFLAGS }} $HDR" \
             -o ios/Bind.xcframework ./bind
 
       - name: Build unsigned IPA
