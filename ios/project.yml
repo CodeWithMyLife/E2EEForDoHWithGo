@@ -1,0 +1,31 @@
+# xcodegen 工程描述（CI 中 brew install xcodegen 后生成 .xcodeproj）
+name: Fastime
+options:
+  bundleIdPrefix: com.fastime
+targets:
+  Fastime:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: Fastime
+        CFBundleDisplayName: Fastime
+        CFBundleIdentifier: com.fastime.app
+        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0"
+        UILaunchScreen: {}
+        # audio 后台模式 + 静音循环 = 侧载场景下最可靠的常驻保活手段
+        UIBackgroundModes: [audio, fetch, processing]
+        BGTaskSchedulerPermittedIdentifiers: [com.fastime.refresh]
+    dependencies:
+      - framework: Bind.xcframework
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fastime.app
+        CODE_SIGNING_ALLOWED: NO
+        SWIFT_VERSION: "5.0"

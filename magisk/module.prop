@@ -1,0 +1,6 @@
+id=fastime
+name=Fastime
+version=v1.0
+versionCode=1
+author=fastime
+description=本地加密中继服务，开机以 root 自动启动，不受省电策略影响
