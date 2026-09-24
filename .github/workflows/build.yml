@@ -9,7 +9,8 @@ on:
 env:
   GO_VERSION: "1.24"
   # 构建期注入二进制的 ldflags（来源为仓库 Secrets，全部为单行值；
-  # CUSTOM_HEADERS 必须是单行 JSON，如 {"X-Auth":"abc"}）
+  # CUSTOM_HEADERS 请存 base64(JSON)，如 echo -n '{"X-Auth":"abc"}' | base64，
+  # 避免 JSON 引号被 shell 吃掉导致程序启动报 JSON 解析错误）
   LDFLAGS: >-
     -s -w
     -X fastime/core.cfgPort=${{ secrets.LISTEN_PORT }}
