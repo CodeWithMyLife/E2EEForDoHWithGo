@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.fastime.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.fastime.app'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // 统一 JVM target：javac 与 kotlin 编译必须一致（JDK 17）
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    // kotlinOptions 必须在 android {} 块内
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    // useLegacyPackaging=true 等价于 extractNativeLibs="true"：
+    // jniLibs 以未压缩文件形式安装，可被 exec 执行（内嵌 Go 二进制的关键）
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+}
