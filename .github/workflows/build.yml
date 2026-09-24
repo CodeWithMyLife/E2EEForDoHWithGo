@@ -57,6 +57,20 @@ jobs:
           set -exo pipefail
           go build -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
           go build -tags noquic -trimpath -ldflags "${{ env.LDFLAGS }}" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}-lite${{ matrix.ext }} .
+      # Windows 额外打包：exe + 启动/停止 bat（双击闪退时用 bat 能看到错误）
+      - name: Package Windows bundle
+        if: matrix.goos == 'windows'
+        run: |
+          set -exo pipefail
+          zip -j fastime-${{ matrix.goos }}-${{ matrix.goarch }}-bundle.zip \
+            fastime-${{ matrix.goos }}-${{ matrix.goarch }}.exe \
+            scripts/start-fastime.bat scripts/stop-fastime.bat
+      - uses: actions/upload-artifact@v7
+        if: matrix.goos == 'windows'
+        with:
+          name: fastime-${{ matrix.goos }}-${{ matrix.goarch }}-bundle
+          path: fastime-${{ matrix.goos }}-${{ matrix.goarch }}-bundle.zip
+          retention-days: 30
       - uses: actions/upload-artifact@v7
         with:
           name: fastime-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -98,6 +112,8 @@ jobs:
             <key>LSUIElement</key><true/>
           </dict></plist>
           EOF
+          # ad-hoc 签名：避免 Gatekeeper 直接判定“已损坏”，用户仍需右键打开或 xattr 去隔离
+          codesign --force --deep -s - Fastime.app
           tar -czf Fastime-macos.app.tar.gz Fastime.app
       - uses: actions/upload-artifact@v7
         with:
