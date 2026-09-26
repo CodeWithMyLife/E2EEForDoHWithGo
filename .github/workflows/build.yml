@@ -58,18 +58,18 @@ jobs:
           # CUSTOM_HEADERS 在构建期 base64 编码，避免 JSON 引号被 shell 吃掉
           HDR=""
           if [ -n "$CUSTOM_HEADERS_RAW" ]; then
-            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 | tr -d '\n')"
           fi
           go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} .
           go build -tags noquic -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-${{ matrix.goos }}-${{ matrix.goarch }}-lite${{ matrix.ext }} .
-      # Windows 额外打包：exe + 启动/停止 bat（双击闪退时用 bat 能看到错误）
+      # Windows 额外打包：exe + 全部 bat（双击闪退时用 bat 能看到错误）
       - name: Package Windows bundle
         if: matrix.goos == 'windows'
         run: |
           set -exo pipefail
           zip -j fastime-${{ matrix.goos }}-${{ matrix.goarch }}-bundle.zip \
             fastime-${{ matrix.goos }}-${{ matrix.goarch }}.exe \
-            scripts/start-fastime.bat scripts/stop-fastime.bat
+            scripts/*.bat
       - uses: actions/upload-artifact@v7
         if: matrix.goos == 'windows'
         with:
@@ -103,7 +103,7 @@ jobs:
           set -exo pipefail
           HDR=""
           if [ -n "$CUSTOM_HEADERS_RAW" ]; then
-            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 | tr -d '\n')"
           fi
           GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-amd64 .
           GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o fastime-arm64 .
@@ -156,7 +156,7 @@ jobs:
           set -exo pipefail
           HDR=""
           if [ -n "$CUSTOM_HEADERS_RAW" ]; then
-            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 | tr -d '\n')"
           fi
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" \
@@ -193,7 +193,7 @@ jobs:
           set -exo pipefail
           HDR=""
           if [ -n "$CUSTOM_HEADERS_RAW" ]; then
-            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 | tr -d '\n')"
           fi
           go build -trimpath -ldflags "${{ env.LDFLAGS }} $HDR" -o magisk/fastime .
           cd magisk
@@ -230,7 +230,7 @@ jobs:
           export GOFLAGS=-mod=mod
           HDR=""
           if [ -n "$CUSTOM_HEADERS_RAW" ]; then
-            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 -w0)"
+            HDR="-X fastime/core.cfgHeaders=$(printf '%s' "$CUSTOM_HEADERS_RAW" | base64 | tr -d '\n')"
           fi
           gomobile bind -v -target=ios -iosversion=15.0 \
             -ldflags "${{ env.LDFLAGS }} $HDR" \
