@@ -1,0 +1,2 @@
+07:04:18.297851 [INFO] fastime 监听于 http://127.0.0.1:18084 (上游 http://www.aliyun.com:9/, 缓存 128 条, 静默期 10s, 超时 10s, 拨号 race, 日志 info)
+07:04:27.108220 [ERROR] 上游请求失败: 所有候选 IP 拨号失败: dial tcp 106.8.159.10:9: i/o timeout
