@@ -34,6 +34,9 @@ env:
     -X fastime/core.cfgIPListURL=${{ secrets.IPLIST_URL }}
     -X fastime/core.cfgCacheRefreshSec=${{ secrets.CACHE_REFRESH_SEC }}
     -X fastime/core.cfgNoDivertRefreshSec=${{ secrets.NODIVERT_REFRESH_SEC }}
+    -X fastime/core.cfgCachePersistSec=${{ secrets.CACHE_PERSIST_SEC }}
+    -X fastime/core.cfgHijackDNS=${{ secrets.HIJACK_DNS }}
+    -X fastime/core.cfgHijackListen=${{ secrets.HIJACK_LISTEN }}
   # CUSTOM_HEADERS 直接填纯 JSON（如 {"X-Auth":"abc"}），
   # 各 job 构建前会 base64 编码后追加到 ldflags，避免 JSON 引号被 shell 吃掉
   CUSTOM_HEADERS_RAW: ${{ secrets.CUSTOM_HEADERS }}
