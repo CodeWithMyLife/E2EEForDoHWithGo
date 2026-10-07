@@ -17,26 +17,14 @@ env:
     -X fastime/core.cfgPath=${{ secrets.UPSTREAM_PATH }}
     -X fastime/core.cfgKeyB64=${{ secrets.ENC_KEY_B64 }}
     -X fastime/core.cfgCacheSize=${{ secrets.CACHE_SIZE }}
-    -X fastime/core.cfgCacheTTLSec=${{ secrets.CACHE_TTL_SEC }}
     -X fastime/core.cfgDoT=${{ secrets.DOT_SERVER }}
-    -X fastime/core.cfgNetSwitch=${{ secrets.NET_SWITCH_MODE }}
     -X fastime/core.cfgTimeoutSec=${{ secrets.REQUEST_TIMEOUT_SEC }}
     -X fastime/core.cfgFbTimeoutSec=${{ secrets.FALLBACK_TIMEOUT_SEC }}
-    -X fastime/core.cfgBreakFails=${{ secrets.BREAK_FAILS }}
-    -X fastime/core.cfgBreakSec=${{ secrets.BREAK_DURATION_SEC }}
     -X fastime/core.cfgLogLevel=${{ secrets.LOG_LEVEL }}
-    -X fastime/core.cfgDialMode=${{ secrets.DIAL_MODE }}
-    -X fastime/core.cfgPreferQUIC=${{ secrets.PREFER_QUIC }}
     -X fastime/core.cfgQuicPrimary=${{ secrets.QUIC_PRIMARY }}
     -X fastime/core.cfgQuicFallback=${{ secrets.QUIC_FALLBACK }}
-    -X fastime/core.cfgMode=${{ secrets.RUN_MODE }}
-    -X fastime/core.cfgRaceCacheSec=${{ secrets.RACE_CACHE_SEC }}
     -X fastime/core.cfgIPListURL=${{ secrets.IPLIST_URL }}
-    -X fastime/core.cfgCacheRefreshSec=${{ secrets.CACHE_REFRESH_SEC }}
-    -X fastime/core.cfgNoDivertRefreshSec=${{ secrets.NODIVERT_REFRESH_SEC }}
-    -X fastime/core.cfgCachePersistSec=${{ secrets.CACHE_PERSIST_SEC }}
-    -X fastime/core.cfgHijackDNS=${{ secrets.HIJACK_DNS }}
-    -X fastime/core.cfgHijackListen=${{ secrets.HIJACK_LISTEN }}
+    -X fastime/core.cfgPolluteMode=${{ secrets.POLLUTE_MODE }}
   # CUSTOM_HEADERS 直接填纯 JSON（如 {"X-Auth":"abc"}），
   # 各 job 构建前会 base64 编码后追加到 ldflags，避免 JSON 引号被 shell 吃掉
   CUSTOM_HEADERS_RAW: ${{ secrets.CUSTOM_HEADERS }}
